@@ -87,6 +87,10 @@ def analyze_product_sequence(df):
     timeline_data = []
     customer_journeys = {}
     
+    # First ensure all date columns are properly converted to datetime
+    for col in product_cols:
+        df[col] = pd.to_datetime(df[col], errors='coerce')
+    
     for customer_id in df['sCustomerNaturalKey'].unique():
         customer_data = df[df['sCustomerNaturalKey'] == customer_id]
         
@@ -95,7 +99,9 @@ def analyze_product_sequence(df):
         for col in product_cols:
             product = col.replace('mFirst_', '')
             date = customer_data[col].iloc[0]
-            if pd.notna(date):
+            
+            # Only add if date is valid
+            if pd.notna(date) and isinstance(date, pd.Timestamp):
                 products.append({
                     'sCustomerNaturalKey': customer_id,
                     'product': product,
@@ -117,7 +123,14 @@ def analyze_product_sequence(df):
                 'last_product': products[-1]['product']
             }
     
-    return pd.DataFrame(timeline_data), pd.DataFrame.from_dict(customer_journeys, orient='index')
+    timeline_df = pd.DataFrame(timeline_data)
+    journey_df = pd.DataFrame.from_dict(customer_journeys, orient='index')
+    
+    # Add debug prints
+    print(f"Timeline data sample:\n{timeline_df.head()}")
+    print(f"\nUnique dates:\n{timeline_df['acquisition_date'].unique()}")
+    
+    return timeline_df, journey_df
 
 def analyze_lifecycle_stages(journey_df, combined_df):
     """Analyze customer lifecycle stages and transitions"""
@@ -211,16 +224,6 @@ def analyze_churn_risk(journey_df, combined_df, timeline_df):
 def create_product_timeline(timeline_df):
     """
     Create an improved product adoption timeline visualization
-    
-    Parameters:
-    -----------
-    timeline_df : pd.DataFrame
-        DataFrame containing 'product' and 'acquisition_date' columns
-    
-    Returns:
-    --------
-    go.Figure
-        Interactive timeline visualization
     """
     if timeline_df.empty:
         return go.Figure()
@@ -234,19 +237,25 @@ def create_product_timeline(timeline_df):
     color_map = {product: color_sequence[i % len(color_sequence)] 
                  for i, product in enumerate(unique_products)}
     
+    # Create the figure
     fig = go.Figure()
     
     for product in unique_products:
         product_data = timeline_df[timeline_df['product'] == product]
         
+        # Add jitter to y-position to spread out points
+        y_positions = [product] * len(product_data)
+        y_jitter = np.random.normal(0, 0.1, len(product_data))
+        y_positions = [y + j for y, j in zip(y_positions, y_jitter)]
+        
         fig.add_trace(go.Scatter(
             x=product_data['acquisition_date'],
-            y=[product] * len(product_data),
+            y=y_positions,
             name=product,
             mode='markers',
             marker=dict(
                 color=color_map[product],
-                size=10,
+                size=8,
                 line=dict(width=1, color='black')
             ),
             hovertemplate="Product: %{y}<br>Date: %{x}<extra></extra>"
@@ -258,7 +267,10 @@ def create_product_timeline(timeline_df):
         yaxis_title="Product",
         height=600,
         showlegend=True,
-        hovermode='closest'
+        hovermode='closest',
+        yaxis=dict(
+            categoryorder='category ascending'
+        )
     )
     
     return fig
