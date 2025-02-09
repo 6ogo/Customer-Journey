@@ -315,7 +315,7 @@ def plot_customer_journey_sankey(journey_df, max_paths=20, min_customers=50):
             if i < len(products) - 1:
                 links.append((products[i], products[i + 1]))
                 link_values.append(count)
-                link_colors.append(sequence_color + "AA")  # Add transparency to links
+                link_colors.append(sequence_color)  # Add transparency to links
 
     # Convert nodes to indices
     node_indices = {node: i for i, node in enumerate(nodes)}
@@ -339,7 +339,7 @@ def plot_customer_journey_sankey(journey_df, max_paths=20, min_customers=50):
     )])
     
     fig.update_layout(
-        title="Enhanced Customer Journey Sankey Diagram",
+        title="Customer Journey Sankey Diagram",
         font_size=14,
         width=1200,  # Wider chart for better readability
         height=900,
@@ -349,6 +349,41 @@ def plot_customer_journey_sankey(journey_df, max_paths=20, min_customers=50):
     )
     
     return fig
+
+def plot_sankey_by_starting_product(journey_df, max_paths=20, min_customers=50):
+    """
+    Create a dictionary of Sankey figures, one per starting product,
+    showing the customer journeys for that starting point.
+
+    Parameters:
+    -----------
+    journey_df : pd.DataFrame
+        DataFrame with customer journey data. This dataframe must include
+        a 'first_product' column that indicates the starting product for each journey.
+    max_paths : int, optional
+        Maximum number of journey paths to include in each Sankey diagram (default is 20).
+    min_customers : int, optional
+        Minimum number of customers per path required to include that path in the diagram (default is 50).
+
+    Returns:
+    --------
+    dict
+        A dictionary where keys are the starting products and values are the corresponding
+        Plotly Sankey figures.
+    """
+    sankey_figs = {}
+
+    # Group the journey data by the 'first_product' column.
+    for first_product, group_df in journey_df.groupby('first_product'):
+        # Optionally, skip groups with too few customers
+        if group_df.empty or group_df.shape[0] < min_customers:
+            continue
+
+        # Use the existing function to create a Sankey diagram for this group.
+        fig = plot_customer_journey_sankey(group_df, max_paths=max_paths, min_customers=min_customers)
+        sankey_figs[first_product] = fig
+
+    return sankey_figs
 
 def plot_lifecycle_analysis(lifecycle_data):
     """
