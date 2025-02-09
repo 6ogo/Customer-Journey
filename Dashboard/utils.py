@@ -321,7 +321,7 @@ def plot_customer_journey_sankey(journey_df, max_paths=20, min_customers=50):
     fig = go.Figure(data=[go.Sankey(
         node=dict(
             pad=20,
-            thickness=20,
+            thickness=10,
             line=dict(color="black", width=0.5),
             label=nodes,
             color=node_colors,
