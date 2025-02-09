@@ -271,100 +271,114 @@ def create_product_timeline(timeline_df):
     
     return fig
 
-def plot_customer_journey_sankey(journey_df, max_paths=20, min_customers=50):
+def plot_customer_journey_sankey(journey_df, max_paths=20, min_customers=50, color_map=None):
     """
-    Create a wider, more readable Sankey diagram with better structure.
+    Create an enhanced Sankey diagram for customer journeys using a fixed color per product.
+    
+    Parameters:
+    -----------
+    journey_df : pd.DataFrame
+        DataFrame with customer journey data. Must include a 'sequence' column 
+        (each sequence is a string with products separated by ' → ').
+    max_paths : int, optional
+        Maximum number of journey paths to include (default is 20).
+    min_customers : int, optional
+        Minimum number of customers per journey path required to include that path (default is 50).
+    color_map : dict, optional
+        Dictionary mapping each product name to a color string. If not provided, it will be
+        computed based on the products found in the journey sequences.
+        
+    Returns:
+    --------
+    go.Figure
+        A Plotly Figure object containing the Sankey diagram.
     """
     if journey_df.empty:
         return go.Figure()
-        
+
     # Get sequences with their counts
     sequence_counts = journey_df['sequence'].value_counts()
     sequence_counts = sequence_counts[sequence_counts >= min_customers].head(max_paths)
-    
     if len(sequence_counts) == 0:
         sequence_counts = journey_df['sequence'].value_counts().head(max_paths)
-    
+
+    # If no color_map is provided, compute one using the products present in these sequences.
+    all_products = set()
+    for sequence in sequence_counts.index:
+        all_products.update(sequence.split(" → "))
+    all_products = sorted(all_products)
+    if color_map is None:
+        color_palette = px.colors.qualitative.Set3
+        color_map = {prod: color_palette[i % len(color_palette)] for i, prod in enumerate(all_products)}
+
     # Create nodes and links
     nodes = []
     links = []
     link_values = []
     link_colors = []
-    
-    # Create color mapping based on first product
-    first_products = set(seq.split(' → ')[0] for seq in sequence_counts.index)
-    color_palette = px.colors.qualitative.Set3
-    first_product_colors = {prod: color_palette[i % len(color_palette)] for i, prod in enumerate(first_products)}
-    
-    node_map = {}  # Mapping product names to node indices
-    node_color_map = {}  # Colors for nodes
-    
-    # Process each sequence
-    for sequence, count in sequence_counts.items():
-        products = sequence.split(' → ')
-        
-        # Assign colors based on first product
-        sequence_color = first_product_colors[products[0]]
-        
-        for i in range(len(products)):
-            if products[i] not in node_map:
-                node_map[products[i]] = len(nodes)
-                nodes.append(products[i])
-                node_color_map[products[i]] = sequence_color  # Color assigned to nodes
-            
-            if i < len(products) - 1:
-                links.append((products[i], products[i + 1]))
-                link_values.append(count)
-                link_colors.append(sequence_color)  # Add transparency to links
+    node_map = {}  # mapping product name to node index
 
-    # Convert nodes to indices
-    node_indices = {node: i for i, node in enumerate(nodes)}
-    
+    # Process each journey sequence
+    for sequence, count in sequence_counts.items():
+        products = sequence.split(" → ")
+        for i, prod in enumerate(products):
+            if prod not in node_map:
+                node_map[prod] = len(nodes)
+                nodes.append(prod)
+            # Create a link from the current product to the next one (if any)
+            if i < len(products) - 1:
+                links.append((prod, products[i + 1]))
+                link_values.append(count)
+                # Use the color for the source product for the link
+                link_colors.append(color_map.get(prod, "gray"))
+
+    # Build a list of node colors based on the provided color_map
+    node_colors = [color_map.get(prod, "gray") for prod in nodes]
+
     fig = go.Figure(data=[go.Sankey(
         node=dict(
-            pad=40,  # Increased spacing between nodes
-            thickness=8,  # Reduced thickness for better visibility
+            pad=40,
+            thickness=8,
             line=dict(color="black", width=0.3),
             label=nodes,
-            color=[node_color_map[n] for n in nodes],  # Assign colors to nodes
+            color=node_colors,
             hovertemplate='Node: %{label}<br>Total Flow: %{value}<extra></extra>'
         ),
         link=dict(
-            source=[node_indices[link[0]] for link in links],
-            target=[node_indices[link[1]] for link in links],
+            source=[node_map[link[0]] for link in links],
+            target=[node_map[link[1]] for link in links],
             value=link_values,
-            color=link_colors,  # Use dynamic colors with transparency
+            color=link_colors,
             hovertemplate='From: %{source.label}<br>To: %{target.label}<br>Flow: %{value}<extra></extra>'
         )
     )])
     
     fig.update_layout(
-        title="Customer Journey Sankey Diagram",
+        title="Enhanced Customer Journey Sankey Diagram",
         font_size=14,
-        width=1200,  # Wider chart for better readability
+        width=1200,
         height=900,
         showlegend=True,
-        paper_bgcolor="black",  # Dark mode for better contrast
-        font=dict(color="white")  # Text color for dark mode
+        paper_bgcolor="black",
+        font=dict(color="white")
     )
     
     return fig
 
 def plot_sankey_by_starting_product(journey_df, max_paths=20, min_customers=50):
     """
-    Create a dictionary of Sankey figures, one per starting product,
-    showing the customer journeys for that starting point.
-
+    Create a dictionary of Sankey figures, one per starting product, showing the customer journeys
+    for that starting point, using a consistent color mapping per product across all diagrams.
+    
     Parameters:
     -----------
     journey_df : pd.DataFrame
-        DataFrame with customer journey data. This dataframe must include
-        a 'first_product' column that indicates the starting product for each journey.
+        DataFrame with customer journey data. Must include a 'first_product' column.
     max_paths : int, optional
-        Maximum number of journey paths to include in each Sankey diagram (default is 20).
+        Maximum number of journey paths to include (default is 20).
     min_customers : int, optional
-        Minimum number of customers per path required to include that path in the diagram (default is 50).
-
+        Minimum number of customers per journey path required to include that path (default is 50).
+    
     Returns:
     --------
     dict
@@ -373,54 +387,26 @@ def plot_sankey_by_starting_product(journey_df, max_paths=20, min_customers=50):
     """
     sankey_figs = {}
 
-    # Group the journey data by the 'first_product' column.
+    # Compute a global color map for all products across the entire journey_df.
+    global_products = set()
+    for sequence in journey_df['sequence']:
+        global_products.update(sequence.split(" → "))
+    global_products = sorted(global_products)
+    color_palette = px.colors.qualitative.Set3
+    global_color_map = {prod: color_palette[i % len(color_palette)] for i, prod in enumerate(global_products)}
+
+    # Group journeys by the 'first_product' and create a Sankey diagram for each group.
     for first_product, group_df in journey_df.groupby('first_product'):
-        # Optionally, skip groups with too few customers
+        # Skip groups with too few journeys
         if group_df.empty or group_df.shape[0] < min_customers:
             continue
-
-        # Use the existing function to create a Sankey diagram for this group.
-        fig = plot_customer_journey_sankey(group_df, max_paths=max_paths, min_customers=min_customers)
+        
+        fig = plot_customer_journey_sankey(
+            group_df,
+            max_paths=max_paths,
+            min_customers=min_customers,
+            color_map=global_color_map
+        )
         sankey_figs[first_product] = fig
 
     return sankey_figs
-
-def plot_lifecycle_analysis(lifecycle_data):
-    """
-    Create an improved lifecycle stage analysis visualization
-    
-    Parameters:
-    -----------
-    lifecycle_data : pd.DataFrame
-        DataFrame containing lifecycle stages and adoption rates
-    
-    Returns:
-    --------
-    go.Figure or None
-        Box plot visualization of adoption rates by lifecycle stage
-    """
-    if lifecycle_data.empty:
-        return None
-        
-    fig = go.Figure()
-    
-    # Add box plot for adoption rates
-    fig.add_trace(go.Box(
-        y=lifecycle_data['adoption_rate'],
-        x=lifecycle_data['stage'],
-        name='Adoption Rate',
-        marker_color='rgb(107,174,214)',
-        boxpoints='all',
-        jitter=0.3,
-        pointpos=-1.8
-    ))
-    
-    fig.update_layout(
-        title='Adoption Rate by Lifecycle Stage',
-        xaxis_title='Lifecycle Stage',
-        yaxis_title='Adoption Rate',
-        height=500,
-        showlegend=False
-    )
-    
-    return fig

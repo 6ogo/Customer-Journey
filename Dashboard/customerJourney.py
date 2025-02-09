@@ -178,10 +178,10 @@ def main():
         st.plotly_chart(fig_journey, use_container_width=True)
 
         st.subheader("Customer Journey Flows by starting product")
-        # Create multiple Sankey diagrams grouped by the first product in the journey.
+        # Create multiple Sankey diagrams grouped by the first product in each journey.
         sankey_figs = plot_sankey_by_starting_product(journey_df, max_paths=20, min_customers=50)
 
-        # Iterate through each starting product and display its Sankey diagram.
+        # Iterate through the dictionary and display each diagram.
         for start_prod, fig in sankey_figs.items():
             st.subheader(f"Customer Journeys Starting with {start_prod}")
             st.plotly_chart(fig, use_container_width=True)
