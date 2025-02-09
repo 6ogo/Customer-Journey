@@ -150,14 +150,12 @@ def main():
         # Key metrics
         patterns = analyze_journey_patterns(journey_df)
         
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("Total Customers", f"{patterns['journey_stats']['total_customers']:,}")
         with col2:
             st.metric("Avg Journey Length", f"{patterns['journey_stats']['avg_products']:.2f} products")
         with col3:
-            st.metric("Avg Journey Duration", f"{patterns['journey_stats']['avg_duration']:.0f} days")
-        with col4:
             st.metric("Multi-product Customers", 
                      f"{(1 - patterns['journey_segments']['single_product']):.1%}")
         
