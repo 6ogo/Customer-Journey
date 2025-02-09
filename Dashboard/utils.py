@@ -410,3 +410,43 @@ def plot_sankey_by_starting_product(journey_df, max_paths=20, min_customers=50):
         sankey_figs[first_product] = fig
 
     return sankey_figs
+
+def plot_lifecycle_analysis(lifecycle_data):
+    """
+    Create an improved lifecycle stage analysis visualization
+    
+    Parameters:
+    -----------
+    lifecycle_data : pd.DataFrame
+        DataFrame containing lifecycle stages and adoption rates
+    
+    Returns:
+    --------
+    go.Figure or None
+        Box plot visualization of adoption rates by lifecycle stage
+    """
+    if lifecycle_data.empty:
+        return None
+        
+    fig = go.Figure()
+    
+    # Add box plot for adoption rates
+    fig.add_trace(go.Box(
+        y=lifecycle_data['adoption_rate'],
+        x=lifecycle_data['stage'],
+        name='Adoption Rate',
+        marker_color='rgb(107,174,214)',
+        boxpoints='all',
+        jitter=0.3,
+        pointpos=-1.8
+    ))
+    
+    fig.update_layout(
+        title='Adoption Rate by Lifecycle Stage',
+        xaxis_title='Lifecycle Stage',
+        yaxis_title='Adoption Rate',
+        height=500,
+        showlegend=False
+    )
+    
+    return fig
