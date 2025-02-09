@@ -13,22 +13,36 @@ from utils import (
     analyze_product_sequence,
     analyze_lifecycle_stages,
     analyze_journey_patterns,
-    analyze_churn_risk
+    analyze_churn_risk,
+    create_product_timeline,
+    plot_customer_journey_sankey,
+    plot_lifecycle_analysis
 )
 
 # Set page config
 st.set_page_config(page_title="Customer Journey Analysis", layout="wide")
 
-@st.cache_data
+@st.cache_data(ttl=3600)
 def load_and_preprocess_data():
     """Load and preprocess all data"""
-    combined_df = load_abt_files()
-    combined_df = preprocess_data(combined_df)
-    timeline_df, journey_df = analyze_product_sequence(combined_df)
-    return combined_df, timeline_df, journey_df
+    try:
+        combined_df = load_abt_files()
+        if combined_df is None or combined_df.empty:
+            raise ValueError("No data loaded")
+            
+        combined_df = preprocess_data(combined_df)
+        timeline_df, journey_df = analyze_product_sequence(combined_df)
+        return combined_df, timeline_df, journey_df
+    except Exception as e:
+        st.error(f"Error loading data: {str(e)}")
+        return None, None, None
 
+@st.cache_data
 def create_product_transition_matrix(journey_df):
     """Create a transition matrix showing product purchase sequences"""
+    if journey_df.empty:
+        return pd.DataFrame()
+        
     transitions = []
     
     for sequence in journey_df['sequence']:
@@ -40,6 +54,9 @@ def create_product_transition_matrix(journey_df):
                     'to_product': products[i + 1]
                 })
     
+    if not transitions:
+        return pd.DataFrame()
+        
     transition_df = pd.DataFrame(transitions)
     transition_matrix = pd.crosstab(
         transition_df['from_product'], 
@@ -49,8 +66,18 @@ def create_product_transition_matrix(journey_df):
     
     return transition_matrix
 
+@st.cache_data
 def analyze_product_demographics(combined_df, product):
     """Analyze demographics for a specific product"""
+    if combined_df.empty or not product:
+        return {
+            'age_mean': 0,
+            'age_median': 0,
+            'pct_women': 0,
+            'pct_apartment': 0,
+            'total_customers': 0
+        }
+        
     product_customers = combined_df[combined_df[f'Have_{product}'] == 1]
     
     demographics = {
@@ -58,8 +85,7 @@ def analyze_product_demographics(combined_df, product):
         'age_median': product_customers['Age'].median(),
         'pct_women': (product_customers['Woman'] == 1).mean() * 100,
         'pct_apartment': (product_customers['Apartment'] == 1).mean() * 100,
-        'total_customers': len(product_customers),
-        'lifestyle_distribution': product_customers['LifestyleGroupCode'].value_counts()
+        'total_customers': len(product_customers)
     }
     
     return demographics
@@ -67,13 +93,19 @@ def analyze_product_demographics(combined_df, product):
 def main():
     st.title("Customer Journey Analysis Dashboard")
     
-    # Load data
-    try:
-        combined_df, timeline_df, journey_df = load_and_preprocess_data()
-    except Exception as e:
-        st.error(f"Error loading data: {str(e)}")
-        st.write("Please ensure your data files are in the correct location and format.")
+    # Add configuration options in sidebar
+    with st.sidebar:
+        st.header("Visualization Settings")
+        min_customers = st.slider("Minimum Customers per Path", 10, 200, 50)
+        max_paths = st.slider("Maximum Paths to Show", 5, 50, 20)
+    
+    # Load data with better error handling
+    data = load_and_preprocess_data()
+    if not all(data):
+        st.error("Failed to load required data. Please check your data files and try again.")
         return
+        
+    combined_df, timeline_df, journey_df = data
     
     # Create tabs
     tab1, tab2, tab3 = st.tabs([
@@ -112,14 +144,13 @@ def main():
         
         # Product Adoption Timeline
         st.subheader("Product Adoption Timeline")
-        fig_timeline = px.scatter(
-            timeline_df,
-            x='acquisition_date',
-            y='product',
-            color='product',
-            title="Product Adoption Over Time"
-        )
+        fig_timeline = create_product_timeline(timeline_df)
         st.plotly_chart(fig_timeline, use_container_width=True)
+        
+        # Customer Journey Sankey
+        st.subheader("Customer Journey Flows")
+        fig_sankey = plot_customer_journey_sankey(journey_df, max_paths=max_paths, min_customers=min_customers)
+        st.plotly_chart(fig_sankey, use_container_width=True)
         
         # Common Journey Paths
         st.subheader("Most Common Journey Paths")
@@ -200,28 +231,21 @@ def main():
             with col2:
                 demographics = analyze_product_demographics(combined_df, selected_product)
                 st.write("Target Customer Profile")
-                demographics = analyze_product_demographics(combined_df, selected_product)
-                st.write("Target Customer Profile")
                 st.write(f"- Average Age: {demographics['age_mean']:.1f}")
                 st.write(f"- Median Age: {demographics['age_median']:.1f}")
                 st.write(f"- Women: {demographics['pct_women']:.1f}%")
                 st.write(f"- Apartment Dwellers: {demographics['pct_apartment']:.1f}%")
-                st.write("\nLifestyle Distribution:")
-                st.dataframe(demographics['lifestyle_distribution'])
             
             # Lifecycle stage analysis
             st.subheader("Customer Lifecycle Analysis")
             customer_data = combined_df[combined_df[f'Have_{selected_product}'] == 1]
             lifecycle_data = analyze_lifecycle_stages(journey_df, customer_data)
             
-            if not lifecycle_data.empty:
-                fig_lifecycle = px.box(
-                    lifecycle_data,
-                    x='stage',
-                    y='adoption_rate',
-                    title="Adoption Rate by Lifecycle Stage"
-                )
+            fig_lifecycle = plot_lifecycle_analysis(lifecycle_data)
+            if fig_lifecycle:
                 st.plotly_chart(fig_lifecycle, use_container_width=True)
+            else:
+                st.info("No lifecycle data available for visualization")
             
             # Churn Risk Analysis
             st.subheader("Churn Risk Analysis")
@@ -252,6 +276,8 @@ def main():
                     with col2:
                         st.metric("Total Customers", high_risk_demographics['total_customers'])
                         st.metric("Apartment %", f"{high_risk_demographics['pct_apartment']:.1f}%")
+        else:
+            st.info(f"No transition data available for {selected_product}")
 
 if __name__ == "__main__":
     main()
