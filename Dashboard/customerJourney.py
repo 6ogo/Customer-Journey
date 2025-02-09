@@ -132,9 +132,16 @@ def main():
     combined_df, timeline_df, journey_df = data
     
     # Additional validation for empty DataFrames
-    if combined_df.empty or timeline_df.empty or journey_df.empty:
-        st.error("One or more required datasets are empty. Please check your data.")
+    if combined_df.empty:
+        st.error("The main customer dataset is empty. Please check your data.")
         return
+    
+    # Compute total customers from the combined data (all customers)
+    total_customers = combined_df['sCustomerNaturalKey'].nunique()
+    # Compute multi-product customers from the journey data (only customers with >1 product)
+    multi_product_customers = journey_df.shape[0]
+    # Calculate the ratio
+    multi_product_pct = multi_product_customers / total_customers if total_customers > 0 else 0
     
     # Create tabs
     tab1, tab2, tab3 = st.tabs([
@@ -148,16 +155,16 @@ def main():
         st.header("Customer Journey Overview")
         
         # Key metrics
-        patterns = analyze_journey_patterns(journey_df)
+        # (Use combined_df for total customers and journey_df for multi-product details)
+        avg_journey_length = journey_df['length'].mean() if not journey_df.empty else 0
         
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Total Customers", f"{patterns['journey_stats']['total_customers']:,}")
+            st.metric("Total Customers", f"{total_customers:,}")
         with col2:
-            st.metric("Avg Journey Length", f"{patterns['journey_stats']['avg_products']:.2f} products")
+            st.metric("Avg Journey Length", f"{avg_journey_length:.2f} products")
         with col3:
-            st.metric("Multi-product Customers", 
-                     f"{(1 - patterns['journey_segments']['single_product']):.1%}")
+            st.metric("Multi-product Customers", f"{multi_product_pct:.1%}")
         
         # Journey Length Distribution
         st.subheader("Journey Length Distribution")
@@ -168,11 +175,6 @@ def main():
             title="Distribution of Customer Journey Lengths"
         )
         st.plotly_chart(fig_journey, use_container_width=True)
-        
-        # Product Adoption Timeline
-        #st.subheader("Product Adoption Timeline")
-        #fig_timeline = create_product_timeline(timeline_df)
-        #st.plotly_chart(fig_timeline, use_container_width=True)
         
         # Customer Journey Sankey
         st.subheader("Customer Journey Flows")
