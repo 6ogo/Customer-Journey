@@ -170,9 +170,9 @@ def main():
         st.plotly_chart(fig_journey, use_container_width=True)
         
         # Product Adoption Timeline
-        st.subheader("Product Adoption Timeline")
-        fig_timeline = create_product_timeline(timeline_df)
-        st.plotly_chart(fig_timeline, use_container_width=True)
+        #st.subheader("Product Adoption Timeline")
+        #fig_timeline = create_product_timeline(timeline_df)
+        #st.plotly_chart(fig_timeline, use_container_width=True)
         
         # Customer Journey Sankey
         st.subheader("Customer Journey Flows")
