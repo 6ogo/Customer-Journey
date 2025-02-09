@@ -221,51 +221,44 @@ def analyze_churn_risk(journey_df, combined_df, timeline_df):
 
 def create_product_timeline(timeline_df):
     """
-    Create an improved product adoption timeline visualization
+    Create a product adoption timeline visualization using a categorical y-axis.
     """
     if timeline_df.empty:
         return go.Figure()
-        
-    # Ensure dates are datetime objects and filter out invalid dates
+
+    # Ensure dates are valid datetime objects
     timeline_df = timeline_df.dropna(subset=['acquisition_date'])
-    timeline_df['acquisition_date'] = pd.to_datetime(timeline_df['acquisition_date'])
+    timeline_df['acquisition_date'] = pd.to_datetime(timeline_df['acquisition_date'], errors='coerce')
+    timeline_df = timeline_df.dropna(subset=['acquisition_date'])
     
-    # Create numeric y-axis positions for products
-    unique_products = timeline_df['product'].unique()
-    product_mapping = {product: idx for idx, product in enumerate(unique_products)}
+    # Get a sorted list of unique products for the y-axis
+    unique_products = sorted(timeline_df['product'].unique())
     
-    # Create color mapping
+    # Create a consistent color mapping for each product
     color_sequence = px.colors.qualitative.Set3
-    color_map = {product: color_sequence[i % len(color_sequence)] 
-                 for i, product in enumerate(unique_products)}
+    color_map = {product: color_sequence[i % len(color_sequence)] for i, product in enumerate(unique_products)}
     
-    # Create the figure
     fig = go.Figure()
-    
+
+    # For each product, add a trace with y-axis as the product name (category)
     for product in unique_products:
         product_data = timeline_df[timeline_df['product'] == product]
+        if product_data.empty:
+            continue
         
-        if not product_data.empty:
-            # Generate jittered y-positions using numeric values
-            base_y = product_mapping[product]
-            y_jitter = np.random.uniform(-0.3, 0.3, len(product_data))
-            y_positions = base_y + y_jitter
-            
-            fig.add_trace(go.Scatter(
-                x=product_data['acquisition_date'],
-                y=y_positions,
-                name=product,
-                mode='markers',
-                marker=dict(
-                    color=color_map[product],
-                    size=8,
-                    line=dict(width=1, color='black')
-                ),
-                hovertemplate="Product: %{text}<br>Date: %{x|%Y-%m-%d}<extra></extra>",
-                text=[product]*len(product_data)
-            ))
+        fig.add_trace(go.Scatter(
+            x=product_data['acquisition_date'],
+            y=[product] * len(product_data),  # Use the product name as the y value
+            mode='markers',
+            marker=dict(
+                color=color_map[product],
+                size=8,
+                line=dict(width=1, color='black')
+            ),
+            name=product,
+            hovertemplate="Product: %{y}<br>Date: %{x|%Y-%m-%d}<extra></extra>"
+        ))
     
-    # Configure y-axis to show product names
     fig.update_layout(
         title="Product Adoption Timeline",
         xaxis_title="Acquisition Date",
@@ -273,12 +266,7 @@ def create_product_timeline(timeline_df):
         height=600,
         showlegend=True,
         hovermode='closest',
-        yaxis=dict(
-            tickmode='array',
-            tickvals=list(product_mapping.values()),
-            ticktext=list(product_mapping.keys()),
-            range=[-0.5, len(unique_products)-0.5]
-        )
+        yaxis=dict(type='category')
     )
     
     return fig
