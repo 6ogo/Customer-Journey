@@ -1,11 +1,11 @@
 # Customer Journey Analysis Project
 
 ## Overview
-This project analyzes customer journeys and product adoption patterns using data from multiple financial and insurance products. It includes visualization of customer behavior, demographic analysis, and optional predictive modeling capabilities.
+This project analyzes customer journeys and product adoption patterns using data from multiple financial and insurance products. It provides both a detailed Jupyter notebook analysis and an interactive Streamlit dashboard for exploring customer behavior, demographic analysis, and predictive modeling capabilities.
 
 ## Data Structure
 The project expects CSV files with the following naming convention:
-- `ABT_score_(PRODUCT).csv
+- `ABT_score_(PRODUCT).csv`
 - Additional ABT_score files can be added following the same pattern
 
 ### Key Data Fields
@@ -20,14 +20,41 @@ The project expects CSV files with the following naming convention:
 
 ## Requirements
 
-### Python Dependencies
+The project has two main components with separate requirements:
+
+### Jupyter Notebook Analysis
+Located in `/notebook`, with requirements:
 ```bash
-pip install pandas numpy torch matplotlib seaborn plotly jax scikit-learn
+cd notebook
+pip install -r requirements.txt
 ```
+This includes:
+- pandas
+- numpy
+- torch
+- matplotlib
+- seaborn
+- jax
+- scikit-learn
+- plotly
+
+### Streamlit Dashboard
+Located in `/Dashboard`, with requirements:
+```bash
+cd Dashboard
+pip install -r requirements.txt
+```
+This includes:
+- streamlit
+- pandas
+- numpy
+- plotly
+- seaborn
+- matplotlib
 
 ### System Requirements
 - Python 3.8+
-- Jupyter Notebook/JupyterLab
+- Jupyter Notebook/JupyterLab (for analysis notebook)
 - GPU (optional, for accelerated computing with PyTorch/JAX)
 
 ## Project Structure
@@ -36,37 +63,35 @@ customer-journey-analysis/
 ├── data/
 │   ├── ABT_score_(PRODUCT).csv
 │   └── ...
-├── notebooks/
-│   └── customer_journey_analysis.ipynb
-├── README.md
-└── requirements.txt
+├── notebook/
+│   ├── customer_journey_analysis.ipynb
+│   └── requirements.txt
+├── Dashboard/
+│   ├── customerJourney.py
+│   ├── utils.py
+│   └── requirements.txt
+└── README.md
 ```
 
 ## Features
 
-### 1. Data Processing
+### 1. Jupyter Notebook Analysis
 - Automated loading of all ABT_score files
 - Data cleaning and preprocessing
-- Date normalization
-- Binary feature encoding
-
-### 2. Analysis Capabilities
 - Customer journey mapping
 - Product sequence analysis
 - Demographic distribution analysis
 - Product adoption timeline visualization
-- Product combination analysis
+- Interactive Sankey diagrams
+- Optional machine learning with PyTorch
 
-### 3. Visualizations
-- Interactive Sankey diagrams of customer journeys
-- Demographic distribution plots
-- Product adoption timelines
-- Correlation heatmaps of product combinations
-
-### 4. Optional Machine Learning
-- PyTorch-based predictive modeling
-- Feature preparation and scaling
-- Neural network architecture for product adoption prediction
+### 2. Streamlit Dashboard
+- Interactive visualization of customer journeys
+- Product analysis and correlations
+- CRM recommendations
+- Demographic insights
+- Churn risk analysis
+- Product transition patterns
 
 ## Usage
 
@@ -76,19 +101,22 @@ git clone https://github.com/6ogo/Customer-Journey
 cd Customer-Journey
 ```
 
-2. Install requirements:
+2. Place your ABT_score CSV files in the data directory
+
+3. For Jupyter Notebook Analysis:
 ```bash
+cd notebook
 pip install -r requirements.txt
-```
-
-3. Place your ABT_score CSV files in the data directory
-
-4. Launch Jupyter Notebook:
-```bash
 jupyter notebook
 ```
+Then open `customer_journey_analysis.ipynb`
 
-5. Open `notebooks/customer_journey_analysis.ipynb` and run cells sequentially
+4. For Streamlit Dashboard:
+```bash
+cd Dashboard
+pip install -r requirements.txt
+streamlit run customerJourney.py
+```
 
 ## Analysis Outputs
 
@@ -96,16 +124,16 @@ jupyter notebook
 - Visualization of common product adoption sequences
 - Identification of typical first products
 - Time between product acquisitions
-
-### Demographic Analysis
-- Age distribution by product
-- Gender distribution by product
 - Demographic segmentation insights
-
-### Product Analysis
 - Product combination patterns
-- Correlation between different products
 - Adoption timeline patterns
+
+### Dashboard Features
+- Overview & Journey Analysis
+- Product Analysis
+- CRM & Recommendations
+- Churn Risk Assessment
+- Interactive Visualizations
 
 ## Contributing
 To contribute to this project:
@@ -114,10 +142,3 @@ To contribute to this project:
 3. Commit your changes
 4. Push to the branch
 5. Create a Pull Request
-
-## Future Enhancements
-- Additional cohort analysis capabilities
-- Customer lifetime value calculations
-- Churn prediction modeling
-- More detailed demographic segmentation
-- Streamlit Dashboard
