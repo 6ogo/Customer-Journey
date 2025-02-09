@@ -26,13 +26,28 @@ st.set_page_config(page_title="Customer Journey Analysis", layout="wide")
 def load_and_preprocess_data():
     """Load and preprocess all data"""
     try:
+        # Load raw data
         combined_df = load_abt_files()
         if combined_df is None or combined_df.empty:
-            raise ValueError("No data loaded")
+            st.error("No data loaded from files")
+            return None, None, None
             
-        combined_df = preprocess_data(combined_df)
-        timeline_df, journey_df = analyze_product_sequence(combined_df)
+        # Preprocess data
+        try:
+            combined_df = preprocess_data(combined_df)
+        except Exception as e:
+            st.error(f"Error preprocessing data: {str(e)}")
+            return None, None, None
+            
+        # Analyze product sequences
+        try:
+            timeline_df, journey_df = analyze_product_sequence(combined_df)
+        except Exception as e:
+            st.error(f"Error analyzing product sequences: {str(e)}")
+            return None, None, None
+            
         return combined_df, timeline_df, journey_df
+        
     except Exception as e:
         st.error(f"Error loading data: {str(e)}")
         return None, None, None
@@ -101,11 +116,16 @@ def main():
     
     # Load data with better error handling
     data = load_and_preprocess_data()
-    if not all(data):
+    if data is None or any(x is None for x in data):
         st.error("Failed to load required data. Please check your data files and try again.")
         return
         
     combined_df, timeline_df, journey_df = data
+    
+    # Additional validation for empty DataFrames
+    if combined_df.empty or timeline_df.empty or journey_df.empty:
+        st.error("One or more required datasets are empty. Please check your data.")
+        return
     
     # Create tabs
     tab1, tab2, tab3 = st.tabs([
