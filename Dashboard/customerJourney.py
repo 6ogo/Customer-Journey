@@ -86,14 +86,23 @@ def analyze_product_demographics(combined_df, product):
     """Analyze demographics for a specific product"""
     if combined_df.empty or not product:
         return {
-            'age_mean': 0,
-            'age_median': 0,
-            'pct_women': 0,
-            'pct_apartment': 0,
+            'age_mean': None,
+            'age_median': None,
+            'pct_women': None,
+            'pct_apartment': None,
             'total_customers': 0
         }
         
     product_customers = combined_df[combined_df[f'Have_{product}'] == 1]
+    
+    if product_customers.empty:
+        return {
+            'age_mean': None,
+            'age_median': None,
+            'pct_women': None,
+            'pct_apartment': None,
+            'total_customers': 0
+        }
     
     demographics = {
         'age_mean': product_customers['Age'].mean(),

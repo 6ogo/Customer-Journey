@@ -87,33 +87,32 @@ def analyze_product_sequence(df):
     timeline_data = []
     customer_journeys = {}
     
-    # First ensure all date columns are properly converted to datetime
+    # Convert date columns and filter invalid dates
     for col in product_cols:
         df[col] = pd.to_datetime(df[col], errors='coerce')
+    
+    # Remove rows with all missing product dates
+    df = df.dropna(subset=product_cols, how='all')
     
     for customer_id in df['sCustomerNaturalKey'].unique():
         customer_data = df[df['sCustomerNaturalKey'] == customer_id]
         
-        # Get product acquisition dates
         products = []
         for col in product_cols:
             product = col.replace('mFirst_', '')
             date = customer_data[col].iloc[0]
             
-            # Only add if date is valid
-            if pd.notna(date) and isinstance(date, pd.Timestamp):
+            if pd.notna(date):
                 products.append({
                     'sCustomerNaturalKey': customer_id,
                     'product': product,
                     'acquisition_date': date
                 })
         
-        # Sort products by date
-        products = sorted(products, key=lambda x: x['acquisition_date'])
-        timeline_data.extend(products)
-        
-        # Create journey sequence
-        if products:
+        if products:  # Only process customers with at least one product
+            products = sorted(products, key=lambda x: x['acquisition_date'])
+            timeline_data.extend(products)
+            
             journey = ' → '.join([p['product'] for p in products])
             customer_journeys[customer_id] = {
                 'sequence': journey,
@@ -125,10 +124,6 @@ def analyze_product_sequence(df):
     
     timeline_df = pd.DataFrame(timeline_data)
     journey_df = pd.DataFrame.from_dict(customer_journeys, orient='index')
-    
-    # Add debug prints
-    print(f"Timeline data sample:\n{timeline_df.head()}")
-    print(f"\nUnique dates:\n{timeline_df['acquisition_date'].unique()}")
     
     return timeline_df, journey_df
 
@@ -228,11 +223,15 @@ def create_product_timeline(timeline_df):
     if timeline_df.empty:
         return go.Figure()
         
-    # Ensure dates are datetime objects
+    # Ensure dates are datetime objects and filter out invalid dates
+    timeline_df = timeline_df.dropna(subset=['acquisition_date'])
     timeline_df['acquisition_date'] = pd.to_datetime(timeline_df['acquisition_date'])
     
-    # Create color mapping for products
+    # Create numeric y-axis positions for products
     unique_products = timeline_df['product'].unique()
+    product_mapping = {product: idx for idx, product in enumerate(unique_products)}
+    
+    # Create color mapping
     color_sequence = px.colors.qualitative.Set3
     color_map = {product: color_sequence[i % len(color_sequence)] 
                  for i, product in enumerate(unique_products)}
@@ -243,24 +242,27 @@ def create_product_timeline(timeline_df):
     for product in unique_products:
         product_data = timeline_df[timeline_df['product'] == product]
         
-        # Add jitter to y-position to spread out points
-        y_positions = [product] * len(product_data)
-        y_jitter = np.random.normal(0, 0.1, len(product_data))
-        y_positions = [y + j for y, j in zip(y_positions, y_jitter)]
-        
-        fig.add_trace(go.Scatter(
-            x=product_data['acquisition_date'],
-            y=y_positions,
-            name=product,
-            mode='markers',
-            marker=dict(
-                color=color_map[product],
-                size=8,
-                line=dict(width=1, color='black')
-            ),
-            hovertemplate="Product: %{y}<br>Date: %{x}<extra></extra>"
-        ))
+        if not product_data.empty:
+            # Generate jittered y-positions using numeric values
+            base_y = product_mapping[product]
+            y_jitter = np.random.uniform(-0.3, 0.3, len(product_data))
+            y_positions = base_y + y_jitter
+            
+            fig.add_trace(go.Scatter(
+                x=product_data['acquisition_date'],
+                y=y_positions,
+                name=product,
+                mode='markers',
+                marker=dict(
+                    color=color_map[product],
+                    size=8,
+                    line=dict(width=1, color='black')
+                ),
+                hovertemplate="Product: %{text}<br>Date: %{x|%Y-%m-%d}<extra></extra>",
+                text=[product]*len(product_data)
+            ))
     
+    # Configure y-axis to show product names
     fig.update_layout(
         title="Product Adoption Timeline",
         xaxis_title="Acquisition Date",
@@ -269,7 +271,10 @@ def create_product_timeline(timeline_df):
         showlegend=True,
         hovermode='closest',
         yaxis=dict(
-            categoryorder='category ascending'
+            tickmode='array',
+            tickvals=list(product_mapping.values()),
+            ticktext=list(product_mapping.keys()),
+            range=[-0.5, len(unique_products)-0.5]
         )
     )
     
