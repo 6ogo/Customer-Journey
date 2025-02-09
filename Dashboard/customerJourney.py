@@ -3,15 +3,23 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-import seaborn as sns
-import matplotlib.pyplot as plt
 from pathlib import Path
 from datetime import datetime
+
+# Import helper functions
+from utils import (
+    load_abt_files,
+    preprocess_data,
+    analyze_product_sequence,
+    analyze_lifecycle_stages,
+    analyze_journey_patterns,
+    analyze_churn_risk
+)
 
 # Set page config
 st.set_page_config(page_title="Customer Journey Analysis", layout="wide")
 
-# Helper functions
+@st.cache_data
 def load_and_preprocess_data():
     """Load and preprocess all data"""
     combined_df = load_abt_files()
@@ -56,12 +64,16 @@ def analyze_product_demographics(combined_df, product):
     
     return demographics
 
-# Main app
 def main():
     st.title("Customer Journey Analysis Dashboard")
     
     # Load data
-    combined_df, timeline_df, journey_df = load_and_preprocess_data()
+    try:
+        combined_df, timeline_df, journey_df = load_and_preprocess_data()
+    except Exception as e:
+        st.error(f"Error loading data: {str(e)}")
+        st.write("Please ensure your data files are in the correct location and format.")
+        return
     
     # Create tabs
     tab1, tab2, tab3 = st.tabs([
@@ -75,16 +87,18 @@ def main():
         st.header("Customer Journey Overview")
         
         # Key metrics
+        patterns = analyze_journey_patterns(journey_df)
+        
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("Total Customers", f"{len(journey_df):,}")
+            st.metric("Total Customers", f"{patterns['journey_stats']['total_customers']:,}")
         with col2:
-            st.metric("Avg Journey Length", f"{journey_df['length'].mean():.2f} products")
+            st.metric("Avg Journey Length", f"{patterns['journey_stats']['avg_products']:.2f} products")
         with col3:
-            st.metric("Avg Journey Duration", f"{journey_df['duration_days'].mean():.0f} days")
+            st.metric("Avg Journey Duration", f"{patterns['journey_stats']['avg_duration']:.0f} days")
         with col4:
             st.metric("Multi-product Customers", 
-                     f"{(journey_df['length'] > 1).mean():.1%}")
+                     f"{(1 - patterns['journey_segments']['single_product']):.1%}")
         
         # Journey Length Distribution
         st.subheader("Journey Length Distribution")
@@ -186,23 +200,58 @@ def main():
             with col2:
                 demographics = analyze_product_demographics(combined_df, selected_product)
                 st.write("Target Customer Profile")
+                demographics = analyze_product_demographics(combined_df, selected_product)
+                st.write("Target Customer Profile")
                 st.write(f"- Average Age: {demographics['age_mean']:.1f}")
                 st.write(f"- Median Age: {demographics['age_median']:.1f}")
                 st.write(f"- Women: {demographics['pct_women']:.1f}%")
                 st.write(f"- Apartment Dwellers: {demographics['pct_apartment']:.1f}%")
+                st.write("\nLifestyle Distribution:")
+                st.dataframe(demographics['lifestyle_distribution'])
             
             # Lifecycle stage analysis
             st.subheader("Customer Lifecycle Analysis")
             customer_data = combined_df[combined_df[f'Have_{selected_product}'] == 1]
             lifecycle_data = analyze_lifecycle_stages(journey_df, customer_data)
             
-            fig_lifecycle = px.box(
-                lifecycle_data,
-                x='stage',
-                y='adoption_rate',
-                title="Adoption Rate by Lifecycle Stage"
-            )
-            st.plotly_chart(fig_lifecycle, use_container_width=True)
+            if not lifecycle_data.empty:
+                fig_lifecycle = px.box(
+                    lifecycle_data,
+                    x='stage',
+                    y='adoption_rate',
+                    title="Adoption Rate by Lifecycle Stage"
+                )
+                st.plotly_chart(fig_lifecycle, use_container_width=True)
+            
+            # Churn Risk Analysis
+            st.subheader("Churn Risk Analysis")
+            risk_data = analyze_churn_risk(journey_df, combined_df, timeline_df)
+            
+            if not risk_data.empty:
+                fig_risk = px.histogram(
+                    risk_data,
+                    x='days_since_last_product',
+                    title="Days Since Last Product Purchase"
+                )
+                st.plotly_chart(fig_risk, use_container_width=True)
+                
+                # High-risk customers
+                high_risk = risk_data[risk_data['days_since_last_product'] > 365]
+                if not high_risk.empty:
+                    st.warning(f"Found {len(high_risk)} high-risk customers (no purchase in >1 year)")
+                    
+                    # Show high-risk customer demographics
+                    high_risk_customers = combined_df[combined_df.index.isin(high_risk.index)]
+                    high_risk_demographics = analyze_product_demographics(high_risk_customers, selected_product)
+                    
+                    st.write("High-Risk Customer Profile:")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("Average Age", f"{high_risk_demographics['age_mean']:.1f}")
+                        st.metric("Women %", f"{high_risk_demographics['pct_women']:.1f}%")
+                    with col2:
+                        st.metric("Total Customers", high_risk_demographics['total_customers'])
+                        st.metric("Apartment %", f"{high_risk_demographics['pct_apartment']:.1f}%")
 
 if __name__ == "__main__":
     main()
