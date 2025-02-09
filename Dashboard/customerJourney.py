@@ -16,6 +16,7 @@ from utils import (
     analyze_churn_risk,
     create_product_timeline,
     plot_customer_journey_sankey,
+    plot_sankey_by_starting_product,
     plot_lifecycle_analysis
 )
 
@@ -175,7 +176,16 @@ def main():
             title="Distribution of Customer Journey Lengths"
         )
         st.plotly_chart(fig_journey, use_container_width=True)
-        
+
+        st.subheader("Customer Journey Flows by starting product")
+        # Create multiple Sankey diagrams grouped by the first product in the journey.
+        sankey_figs = plot_sankey_by_starting_product(journey_df, max_paths=20, min_customers=50)
+
+        # Iterate through each starting product and display its Sankey diagram.
+        for start_prod, fig in sankey_figs.items():
+            st.subheader(f"Customer Journeys Starting with {start_prod}")
+            st.plotly_chart(fig, use_container_width=True)
+
         # Customer Journey Sankey
         st.subheader("Customer Journey Flows")
         fig_sankey = plot_customer_journey_sankey(journey_df, max_paths=max_paths, min_customers=min_customers)
