@@ -109,15 +109,20 @@ def analyze_product_sequence(df):
                     'acquisition_date': date
                 })
         
-        if products:  # Only process customers with at least one product
+        if len(products) > 1:  # Only process customers with multiple products
             products = sorted(products, key=lambda x: x['acquisition_date'])
             timeline_data.extend(products)
             
             journey = ' → '.join([p['product'] for p in products])
+            duration = (products[-1]['acquisition_date'] - products[0]['acquisition_date']).days
+            
+            # Ensure duration is at least 1 day
+            duration = max(1, duration)
+            
             customer_journeys[customer_id] = {
                 'sequence': journey,
                 'length': len(products),
-                'duration_days': (products[-1]['acquisition_date'] - products[0]['acquisition_date']).days,
+                'duration_days': duration,
                 'first_product': products[0]['product'],
                 'last_product': products[-1]['product']
             }
@@ -162,8 +167,7 @@ def analyze_journey_patterns(journey_df):
                 'total_customers': 0,
                 'avg_products': 0,
                 'avg_duration': 0,
-                'common_first': pd.Series(),
-                'common_last': pd.Series()
+                'common_first': pd.Series()
             },
             'journey_segments': {
                 'single_product': 0,
@@ -177,8 +181,7 @@ def analyze_journey_patterns(journey_df):
             'total_customers': len(journey_df),
             'avg_products': journey_df['length'].mean(),
             'avg_duration': journey_df['duration_days'].mean(),
-            'common_first': journey_df['first_product'].value_counts().head(),
-            'common_last': journey_df['last_product'].value_counts().head()
+            'common_first': journey_df['first_product'].value_counts().head()
         },
         'journey_segments': {
             'single_product': (journey_df['length'] == 1).mean(),
@@ -282,21 +285,7 @@ def create_product_timeline(timeline_df):
 
 def plot_customer_journey_sankey(journey_df, max_paths=20, min_customers=50):
     """
-    Create an interactive Sankey diagram showing customer journey flows
-    
-    Parameters:
-    -----------
-    journey_df : pd.DataFrame
-        DataFrame containing customer journey sequences
-    max_paths : int
-        Maximum number of unique paths to show
-    min_customers : int
-        Minimum number of customers for a path to be included
-    
-    Returns:
-    --------
-    go.Figure
-        Interactive Sankey diagram
+    Create an enhanced Sankey diagram with more steps and color coding
     """
     if journey_df.empty:
         return go.Figure()
@@ -309,31 +298,37 @@ def plot_customer_journey_sankey(journey_df, max_paths=20, min_customers=50):
         sequence_counts = journey_df['sequence'].value_counts().head(max_paths)
     
     # Create nodes and links
-    nodes = set(['Start'])
+    nodes = set()
     links = []
     link_values = []
+    link_colors = []
+    
+    # Create color mapping based on first product
+    first_products = set(seq.split(' → ')[0] for seq in sequence_counts.index)
+    color_sequence = px.colors.qualitative.Set3
+    first_product_colors = {prod: color_sequence[i % len(color_sequence)] 
+                           for i, prod in enumerate(first_products)}
     
     # Process each sequence
     for sequence, count in sequence_counts.items():
         products = sequence.split(' → ')
         nodes.update(products)
         
-        # Add link from Start to first product
-        links.append(("Start", products[0]))
-        link_values.append(count)
+        # Determine the color based on first product
+        sequence_color = first_product_colors[products[0]]
         
         # Add links between consecutive products
         for i in range(len(products) - 1):
             links.append((products[i], products[i + 1]))
             link_values.append(count)
+            link_colors.append(sequence_color)
     
     # Convert nodes to list and create indices
     nodes = list(nodes)
     node_indices = {node: i for i, node in enumerate(nodes)}
     
-    # Create color scale
-    color_sequence = px.colors.qualitative.Set3
-    node_colors = [color_sequence[i % len(color_sequence)] for i in range(len(nodes))]
+    # Create node colors (neutral color for all nodes)
+    node_colors = ['rgba(200,200,200,0.5)' for _ in nodes]
     
     fig = go.Figure(data=[go.Sankey(
         node=dict(
@@ -348,6 +343,7 @@ def plot_customer_journey_sankey(journey_df, max_paths=20, min_customers=50):
             source=[node_indices[link[0]] for link in links],
             target=[node_indices[link[1]] for link in links],
             value=link_values,
+            color=link_colors,
             hovertemplate='From: %{source.label}<br>To: %{target.label}<br>Flow: %{value}<extra></extra>'
         )
     )])
