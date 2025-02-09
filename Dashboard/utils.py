@@ -273,7 +273,7 @@ def create_product_timeline(timeline_df):
 
 def plot_customer_journey_sankey(journey_df, max_paths=20, min_customers=50):
     """
-    Create an enhanced Sankey diagram with more steps and color coding
+    Create a wider, more readable Sankey diagram with better structure.
     """
     if journey_df.empty:
         return go.Figure()
@@ -286,61 +286,66 @@ def plot_customer_journey_sankey(journey_df, max_paths=20, min_customers=50):
         sequence_counts = journey_df['sequence'].value_counts().head(max_paths)
     
     # Create nodes and links
-    nodes = set()
+    nodes = []
     links = []
     link_values = []
     link_colors = []
     
     # Create color mapping based on first product
     first_products = set(seq.split(' → ')[0] for seq in sequence_counts.index)
-    color_sequence = px.colors.qualitative.Set3
-    first_product_colors = {prod: color_sequence[i % len(color_sequence)] 
-                           for i, prod in enumerate(first_products)}
+    color_palette = px.colors.qualitative.Set3
+    first_product_colors = {prod: color_palette[i % len(color_palette)] for i, prod in enumerate(first_products)}
+    
+    node_map = {}  # Mapping product names to node indices
+    node_color_map = {}  # Colors for nodes
     
     # Process each sequence
     for sequence, count in sequence_counts.items():
         products = sequence.split(' → ')
-        nodes.update(products)
         
-        # Determine the color based on first product
+        # Assign colors based on first product
         sequence_color = first_product_colors[products[0]]
         
-        # Add links between consecutive products
-        for i in range(len(products) - 1):
-            links.append((products[i], products[i + 1]))
-            link_values.append(count)
-            link_colors.append(sequence_color)
-    
-    # Convert nodes to list and create indices
-    nodes = list(nodes)
+        for i in range(len(products)):
+            if products[i] not in node_map:
+                node_map[products[i]] = len(nodes)
+                nodes.append(products[i])
+                node_color_map[products[i]] = sequence_color  # Color assigned to nodes
+            
+            if i < len(products) - 1:
+                links.append((products[i], products[i + 1]))
+                link_values.append(count)
+                link_colors.append(sequence_color + "AA")  # Add transparency to links
+
+    # Convert nodes to indices
     node_indices = {node: i for i, node in enumerate(nodes)}
-    
-    # Create node colors (neutral color for all nodes)
-    node_colors = ['rgba(200,200,200,0.5)' for _ in nodes]
     
     fig = go.Figure(data=[go.Sankey(
         node=dict(
-            pad=20,
-            thickness=10,
-            line=dict(color="black", width=0.5),
+            pad=40,  # Increased spacing between nodes
+            thickness=8,  # Reduced thickness for better visibility
+            line=dict(color="black", width=0.3),
             label=nodes,
-            color=node_colors,
+            color=[node_color_map[n] for n in nodes],  # Assign colors to nodes
             hovertemplate='Node: %{label}<br>Total Flow: %{value}<extra></extra>'
         ),
         link=dict(
             source=[node_indices[link[0]] for link in links],
             target=[node_indices[link[1]] for link in links],
             value=link_values,
-            color=link_colors,
+            color=link_colors,  # Use dynamic colors with transparency
             hovertemplate='From: %{source.label}<br>To: %{target.label}<br>Flow: %{value}<extra></extra>'
         )
     )])
     
     fig.update_layout(
-        title="Customer Journey Paths Analysis",
-        font_size=12,
-        height=800,
-        showlegend=True
+        title="Enhanced Customer Journey Sankey Diagram",
+        font_size=14,
+        width=1200,  # Wider chart for better readability
+        height=900,
+        showlegend=True,
+        paper_bgcolor="black",  # Dark mode for better contrast
+        font=dict(color="white")  # Text color for dark mode
     )
     
     return fig
