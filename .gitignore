@@ -5,3 +5,4 @@ data/ABT_score_BoKvar.csv
 /notebook/.ipynb_checkpoints
 /Dashboard/__pycache__
 *.csv
+data/ABT_Score_Example.csv
