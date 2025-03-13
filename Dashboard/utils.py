@@ -19,37 +19,15 @@ def validate_data(df):
         
     return True
 
-def load_abt_files():
-    """Load all ABT_score files and combine them with appropriate target labels"""
-    abt_files = list(Path('../data').glob('ABT_[Ss]core_*.csv'))
-    
-    if not abt_files:
-        print("No ABT_score_*.csv files found in current directory!")
-        print("\nCurrent directory contents:")
-        print([f.name for f in Path('../data').glob('*')])
-        print("\nPlease ensure your ABT_score_*.csv files are in the data directory.")
-        return None
-    
-    dfs = []
-    for file_path in abt_files:
-        product = file_path.stem.split('_')[-1]
-        try:
-            print(f"\nLoading {product} data...")
-            df = pd.read_csv(file_path, sep=';')
-            print(f"Successfully loaded {len(df)} rows for {product}")
-            df['product_type'] = product
-            dfs.append(df)
-        except Exception as e:
-            print(f"Error loading {file_path.name}: {str(e)}")
-    
-    combined_df = pd.concat(dfs, ignore_index=True)
+def load_csv_file(file_path):
+    """Load the CSV file containing customer data"""
     try:
-        validate_data(combined_df)
-    except ValueError as e:
-        print(f"Data validation failed: {str(e)}")
+        df = pd.read_csv(file_path)
+        validate_data(df)
+        return df
+    except Exception as e:
+        print(f"Error loading {file_path}: {str(e)}")
         return None
-        
-    return combined_df
 
 def preprocess_data(df):
     """Clean and preprocess the combined dataset"""
@@ -132,7 +110,7 @@ def analyze_product_sequence(df):
     
     return timeline_df, journey_df
 
-def analyze_lifecycle_stages(journey_df, combined_df):
+def analyze_lifecycle_stages(journey_df):
     """Analyze customer lifecycle stages and transitions"""
     if journey_df.empty:
         return pd.DataFrame()
@@ -198,7 +176,7 @@ def analyze_churn_risk(journey_df, combined_df, timeline_df):
     risk_factors = pd.DataFrame()
     
     # Time since last product
-    current_date = combined_df['mFirst_BankBolan'].max()  # Use as reference date
+    current_date = combined_df['mFirst_BankBolån'].max()  # Use as reference date
     if pd.isna(current_date):
         return pd.DataFrame()
         

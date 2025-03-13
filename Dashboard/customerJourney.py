@@ -8,7 +8,7 @@ from datetime import datetime
 
 # Import helper functions
 from utils import (
-    load_abt_files,
+    load_csv_file,
     preprocess_data,
     analyze_product_sequence,
     analyze_lifecycle_stages,
@@ -24,13 +24,13 @@ from utils import (
 st.set_page_config(page_title="Customer Journey Analysis", layout="wide")
 
 @st.cache_data(ttl=3600)
-def load_and_preprocess_data():
+def load_and_preprocess_data(file_path):
     """Load and preprocess all data"""
     try:
         # Load raw data
-        combined_df = load_abt_files()
+        combined_df = load_csv_file(file_path)
         if combined_df is None or combined_df.empty:
-            st.error("No data loaded from files")
+            st.error("No data loaded from file")
             return None, None, None
             
         # Preprocess data
@@ -92,9 +92,9 @@ def analyze_product_demographics(combined_df, product):
             'pct_women': None,
             'pct_apartment': None,
             'total_customers': 0
-        }
+                    }
         
-    product_customers = combined_df[combined_df[f'Have_{product}'] == 1]
+    product_customers = combined_df[combined_df[f'mFirst_{product}'].notna()]
     
     if product_customers.empty:
         return {
@@ -123,11 +123,12 @@ def main():
         st.header("Visualization Settings")
         min_customers = st.slider("Minimum Customers per Path", 10, 200, 50)
         max_paths = st.slider("Maximum Paths to Show", 5, 50, 20)
+        file_path = st.text_input("Enter the path to the CSV file", "customer_data.csv")
     
     # Load data with better error handling
-    data = load_and_preprocess_data()
+    data = load_and_preprocess_data(file_path)
     if data is None or any(x is None for x in data):
-        st.error("Failed to load required data. Please check your data files and try again.")
+        st.error("Failed to load required data. Please check your data file and try again.")
         return
         
     combined_df, timeline_df, journey_df = data
@@ -156,7 +157,6 @@ def main():
         st.header("Customer Journey Overview")
         
         # Key metrics
-        # (Use combined_df for total customers and journey_df for multi-product details)
         avg_journey_length = journey_df['length'].mean() if not journey_df.empty else 0
         
         col1, col2, col3 = st.columns(3)
@@ -179,7 +179,7 @@ def main():
 
         st.subheader("Customer Journey Flows by starting product")
         # Create multiple Sankey diagrams grouped by the first product in each journey.
-        sankey_figs = plot_sankey_by_starting_product(journey_df, max_paths=20, min_customers=50)
+        sankey_figs = plot_sankey_by_starting_product(journey_df, max_paths=max_paths, min_customers=min_customers)
 
         # Iterate through the dictionary and display each diagram.
         for start_prod, fig in sankey_figs.items():
@@ -205,8 +205,8 @@ def main():
         st.header("Product Analysis")
         
         # Product ownership analysis
-        have_cols = [col for col in combined_df.columns if col.startswith('Have_')]
-        product_ownership = combined_df[have_cols].sum().sort_values(ascending=False)
+        product_cols = [col for col in combined_df.columns if col.startswith('mFirst_')]
+        product_ownership = combined_df[product_cols].notna().sum().sort_values(ascending=False)
         
         st.subheader("Product Ownership")
         fig_ownership = px.bar(
@@ -217,7 +217,7 @@ def main():
         
         # Product correlation heatmap
         st.subheader("Product Correlations")
-        corr_matrix = combined_df[have_cols].corr()
+        corr_matrix = combined_df[product_cols].notna().astype(int).corr()
         fig_corr = px.imshow(
             corr_matrix,
             title="Product Correlation Heatmap",
@@ -229,7 +229,7 @@ def main():
         st.subheader("Product Demographics")
         selected_product = st.selectbox(
             "Select Product for Demographic Analysis",
-            [col.replace('Have_', '') for col in have_cols]
+            [col.replace('mFirst_', '') for col in product_cols]
         )
         
         demographics = analyze_product_demographics(combined_df, selected_product)
@@ -249,7 +249,7 @@ def main():
         # Product selection for recommendations
         selected_product = st.selectbox(
             "Select Product for Recommendations",
-            [col.replace('Have_', '') for col in have_cols],
+            [col.replace('mFirst_', '') for col in product_cols],
             key="crm_product_select"
         )
         
@@ -277,8 +277,8 @@ def main():
             
             # Lifecycle stage analysis
             st.subheader("Customer Lifecycle Analysis")
-            customer_data = combined_df[combined_df[f'Have_{selected_product}'] == 1]
-            lifecycle_data = analyze_lifecycle_stages(journey_df, customer_data)
+            customer_data = combined_df[combined_df[f'mFirst_{selected_product}'].notna()]
+            lifecycle_data = analyze_lifecycle_stages(journey_df)
             
             fig_lifecycle = plot_lifecycle_analysis(lifecycle_data)
             if fig_lifecycle:
