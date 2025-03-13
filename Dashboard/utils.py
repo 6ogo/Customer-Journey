@@ -53,20 +53,26 @@ def preprocess_data(df):
     
     return df
 
+# In utils.py - modify the analyze_product_sequence function
 def analyze_product_sequence(df):
     """Analyze expanded sequence of products including multiple touches"""
     if len(df) == 0:
         raise ValueError("Empty dataframe provided!")
         
+    # Add error handling for missing columns
+    product_cols = [col for col in df.columns if col.startswith('mFirst_')]
+    if not product_cols:
+        raise ValueError("No product columns (mFirst_*) found in the data")
+    
     # Identify different sequence patterns (first, second, third, etc.)
-    sequence_patterns = ['mFirst_', 'mSecond_', 'mThird_', 'mFourth_']
+    sequence_patterns = ['mFirst_']  # Start with just first purchases
     
     # Create a comprehensive timeline for each customer
     timeline_data = []
     customer_journeys = {}
     
     for customer_id in df['sCustomerNaturalKey'].unique():
-        customer_data = df[df['sCustomerNaturalKey'] == customer_id]
+        customer_data = df[df['sCustomerNaturalKey'] == customer_id].iloc[0]
         
         # Collect all product touches for this customer
         all_touches = []
@@ -77,7 +83,7 @@ def analyze_product_sequence(df):
             
             for col in pattern_cols:
                 product = col.replace(pattern, '')
-                date = customer_data[col].iloc[0]
+                date = customer_data[col]
                 
                 if pd.notna(date):
                     # Add sequence number information
@@ -99,8 +105,12 @@ def analyze_product_sequence(df):
             simple_journey = ' → '.join([t['product'] for t in all_touches])
             detailed_journey = ' → '.join([t['product_with_seq'] for t in all_touches])
             
-            duration = (all_touches[-1]['acquisition_date'] - all_touches[0]['acquisition_date']).days
-            duration = max(1, duration)
+            # Handle edge case where dates might be invalid
+            try:
+                duration = (all_touches[-1]['acquisition_date'] - all_touches[0]['acquisition_date']).days
+                duration = max(1, duration)
+            except:
+                duration = 1
             
             customer_journeys[customer_id] = {
                 'sequence': simple_journey,  # Standard sequence without seq numbers
@@ -111,8 +121,18 @@ def analyze_product_sequence(df):
                 'last_product': all_touches[-1]['product']
             }
     
-    timeline_df = pd.DataFrame(timeline_data)
-    journey_df = pd.DataFrame.from_dict(customer_journeys, orient='index')
+    # Create DataFrames with proper error handling
+    if not timeline_data:
+        timeline_df = pd.DataFrame(columns=['sCustomerNaturalKey', 'product', 'acquisition_date', 
+                                           'sequence_number', 'product_with_seq'])
+    else:
+        timeline_df = pd.DataFrame(timeline_data)
+    
+    if not customer_journeys:
+        journey_df = pd.DataFrame(columns=['sequence', 'detailed_sequence', 'length', 
+                                          'duration_days', 'first_product', 'last_product'])
+    else:
+        journey_df = pd.DataFrame.from_dict(customer_journeys, orient='index')
     
     return timeline_df, journey_df
 

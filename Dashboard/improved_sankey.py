@@ -4,36 +4,53 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 def plot_customer_journey_sankey(journey_df, max_paths=20, min_customers=50, color_map=None):
-    """
-    Create an enhanced Sankey diagram for customer journeys using a fixed color per product.
-    Improved for better visualization and centering on the screen.
-    
-    Parameters:
-    -----------
-    journey_df : pd.DataFrame
-        DataFrame with customer journey data. Must include a 'sequence' column 
-        (each sequence is a string with products separated by ' → ').
-    max_paths : int, optional
-        Maximum number of journey paths to include (default is 20).
-    min_customers : int, optional
-        Minimum number of customers per journey path required to include that path (default is 50).
-    color_map : dict, optional
-        Dictionary mapping each product name to a color string. If not provided, it will be
-        computed based on the products found in the journey sequences.
-        
-    Returns:
-    --------
-    go.Figure
-        A Plotly Figure object containing the Sankey diagram.
-    """
-    if journey_df.empty:
-        return go.Figure()
+    """Create an enhanced Sankey diagram for customer journeys"""
+    # Add validation
+    if journey_df is None or journey_df.empty or 'sequence' not in journey_df.columns:
+        # Return empty figure with a message
+        fig = go.Figure()
+        fig.add_annotation(
+            text="No journey data available",
+            xref="paper", yref="paper",
+            x=0.5, y=0.5, showarrow=False,
+            font=dict(size=20, color="white")
+        )
+        fig.update_layout(
+            title="Customer Journey Sankey Diagram",
+            font=dict(color="white"),
+            paper_bgcolor="#111111",
+            plot_bgcolor="#111111",
+            height=600
+        )
+        return fig
 
     # Get sequences with their counts
-    sequence_counts = journey_df['sequence'].value_counts()
-    sequence_counts = sequence_counts[sequence_counts >= min_customers].head(max_paths)
+    try:
+        sequence_counts = journey_df['sequence'].value_counts()
+        sequence_counts = sequence_counts[sequence_counts >= min_customers].head(max_paths)
+        if len(sequence_counts) == 0:
+            sequence_counts = journey_df['sequence'].value_counts().head(max_paths)
+    except Exception as e:
+        print(f"Error processing sequences: {str(e)}")
+        sequence_counts = pd.Series()
+    
     if len(sequence_counts) == 0:
-        sequence_counts = journey_df['sequence'].value_counts().head(max_paths)
+        # Return empty figure with a message
+        fig = go.Figure()
+        fig.add_annotation(
+            text="No journey paths meet the criteria",
+            xref="paper", yref="paper",
+            x=0.5, y=0.5, showarrow=False,
+            font=dict(size=20, color="white")
+        )
+        fig.update_layout(
+            title="Customer Journey Sankey Diagram",
+            font=dict(color="white"),
+            paper_bgcolor="#111111",
+            plot_bgcolor="#111111",
+            height=600
+        )
+        return fig
 
     # If no color_map is provided, compute one using the products present in these sequences.
     all_products = set()
@@ -145,8 +162,23 @@ def plot_animated_journey_sankey(journey_df, max_paths=20, min_customers=50):
     go.Figure
         An animated Plotly Figure object.
     """
-    if journey_df.empty:
-        return go.Figure()
+    if journey_df is None or journey_df.empty or 'sequence' not in journey_df.columns:
+        # Return empty figure with a message
+        fig = go.Figure()
+        fig.add_annotation(
+            text="No journey data available for animation",
+            xref="paper", yref="paper",
+            x=0.5, y=0.5, showarrow=False,
+            font=dict(size=20, color="white")
+        )
+        fig.update_layout(
+            title="Animated Customer Journey Flow",
+            font=dict(color="white"),
+            paper_bgcolor="#111111",
+            plot_bgcolor="#111111",
+            height=600
+        )
+        return fig
     
     # Get journey sequences sorted by count
     sequence_counts = journey_df['sequence'].value_counts()
