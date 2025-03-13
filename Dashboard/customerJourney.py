@@ -123,7 +123,7 @@ def main():
         st.header("Visualization Settings")
         min_customers = st.slider("Minimum Customers per Path", 10, 200, 50)
         max_paths = st.slider("Maximum Paths to Show", 5, 50, 20)
-        file_path = st.text_input("Enter the path to the CSV file", "customer_data.csv")
+        file_path = st.text_input("Enter the path to the CSV file", "./Data/customer_data.csv")
     
     # Load data with better error handling
     data = load_and_preprocess_data(file_path)
