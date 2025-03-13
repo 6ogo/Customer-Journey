@@ -9,13 +9,25 @@ def validate_data(df):
     """Validate input data quality and required columns"""
     required_cols = ['sCustomerNaturalKey', 'Age', 'Woman', 'Apartment']
     missing_cols = [col for col in required_cols if col not in df.columns]
+    
+    # Add more detailed error messages
+    if 'sCustomerNaturalKey' not in df.columns:
+        raise ValueError("Critical error: 'sCustomerNaturalKey' column is missing from the dataset")
+    
     if missing_cols:
         raise ValueError(f"Missing required columns: {missing_cols}")
     
     # Validate date columns
     date_cols = [col for col in df.columns if col.startswith('mFirst_')]
     if not date_cols:
-        raise ValueError("No product date columns found")
+        raise ValueError("No product date columns found (columns starting with 'mFirst_')")
+        
+    # Check if we have any data rows
+    if df.empty:
+        raise ValueError("The dataset is empty")
+        
+    # Check data types - ensure customer key is string for consistent handling
+    df['sCustomerNaturalKey'] = df['sCustomerNaturalKey'].astype(str)
         
     return True
 
@@ -53,7 +65,6 @@ def preprocess_data(df):
     
     return df
 
-# In utils.py - modify the analyze_product_sequence function
 def analyze_product_sequence(df):
     """Analyze expanded sequence of products including multiple touches"""
     if len(df) == 0:
@@ -71,8 +82,23 @@ def analyze_product_sequence(df):
     timeline_data = []
     customer_journeys = {}
     
-    for customer_id in df['sCustomerNaturalKey'].unique():
-        customer_data = df[df['sCustomerNaturalKey'] == customer_id].iloc[0]
+    # Check if we have customer_id column or need to use the index
+    if 'customer_id' in df.columns:
+        # Use the preserved column
+        customer_ids = df['customer_id'].unique()
+    else:
+        # Use index as fallback (convert to list to avoid issues)
+        customer_ids = df.index.unique()
+    
+    for customer_id in customer_ids:
+        # Check how to filter based on which column contains the customer ID
+        if 'customer_id' in df.columns:
+            customer_data = df[df['customer_id'] == customer_id].iloc[0]
+        else:
+            # Use index for filtering
+            customer_data = df.loc[customer_id]
+            if isinstance(customer_data, pd.DataFrame) and not customer_data.empty:
+                customer_data = customer_data.iloc[0]
         
         # Collect all product touches for this customer
         all_touches = []
@@ -136,6 +162,7 @@ def analyze_product_sequence(df):
     
     return timeline_df, journey_df
 
+
 def analyze_lifecycle_stages(journey_df):
     """Analyze customer lifecycle stages and transitions"""
     if journey_df.empty:
@@ -197,20 +224,36 @@ def analyze_journey_patterns(journey_df):
 def analyze_churn_risk(journey_df, combined_df, timeline_df):
     if any(df.empty for df in [journey_df, combined_df, timeline_df]):
         return pd.DataFrame()
+        
+    # Handle the customer ID column or index properly
+    if 'sCustomerNaturalKey' in timeline_df.columns:
+        customer_id_col = 'sCustomerNaturalKey'
+    else:
+        # If there's no customer ID column, use a placeholder for groupby
+        timeline_df = timeline_df.copy()
+        timeline_df['temp_customer_id'] = timeline_df.index
+        customer_id_col = 'temp_customer_id'
+    
     product_cols = [col for col in combined_df.columns if col.startswith('mFirst_')]
     current_date = combined_df[product_cols].max().max()
-    last_acquisition = timeline_df.groupby('sCustomerNaturalKey')['acquisition_date'].max()
+    
+    # Get last acquisition date for each customer
+    last_acquisition = timeline_df.groupby(customer_id_col)['acquisition_date'].max()
+    
     risk_factors = pd.DataFrame(index=journey_df.index)
     risk_factors['days_since_last_product'] = (current_date - last_acquisition.reindex(journey_df.index)).dt.days
+    
     had_cols = [col for col in combined_df.columns if col.startswith('Had_')]
     have_cols = [col.replace('Had_', 'Have_') for col in had_cols]
+    
     risk_factors['discontinued_products'] = 0
     for had, have in zip(had_cols, have_cols):
-        risk_factors['discontinued_products'] += (
-            combined_df.loc[journey_df.index, had] > combined_df.loc[journey_df.index, have]
-        ).astype(int)
+        if had in combined_df.columns and have in combined_df.columns:
+            risk_factors['discontinued_products'] += (
+                combined_df.loc[journey_df.index, had] > combined_df.loc[journey_df.index, have]
+            ).astype(int)
+    
     return risk_factors
-
 
 def create_product_timeline(timeline_df):
     """

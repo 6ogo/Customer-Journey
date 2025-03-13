@@ -69,8 +69,14 @@ def load_and_preprocess_data(file_path):
         if combined_df is None or combined_df.empty:
             st.error("No data loaded from file")
             return None, None, None
+            
+        # Important: Make a copy of 'sCustomerNaturalKey' before setting it as index
         if 'sCustomerNaturalKey' in combined_df.columns:
+            # Save the column as a separate column called 'customer_id' 
+            # before setting the index
+            combined_df['customer_id'] = combined_df['sCustomerNaturalKey']
             combined_df = combined_df.set_index('sCustomerNaturalKey')
+            
         combined_df = preprocess_data(combined_df)
         timeline_df, journey_df = analyze_product_sequence(combined_df)
         return combined_df, timeline_df, journey_df
