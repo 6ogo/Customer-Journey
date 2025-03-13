@@ -64,30 +64,16 @@ st.markdown("""
 
 @st.cache_data(ttl=3600)
 def load_and_preprocess_data(file_path):
-    """Load and preprocess all data with better error handling"""
     try:
-        # Load raw data
         combined_df = load_csv_file(file_path)
         if combined_df is None or combined_df.empty:
             st.error("No data loaded from file")
             return None, None, None
-            
-        # Preprocess data
-        try:
-            combined_df = preprocess_data(combined_df)
-        except Exception as e:
-            st.error(f"Error preprocessing data: {str(e)}")
-            return None, None, None
-            
-        # Analyze product sequences
-        try:
-            timeline_df, journey_df = analyze_product_sequence(combined_df)
-        except Exception as e:
-            st.error(f"Error analyzing product sequences: {str(e)}")
-            return None, None, None
-            
+        if 'sCustomerNaturalKey' in combined_df.columns:
+            combined_df = combined_df.set_index('sCustomerNaturalKey')
+        combined_df = preprocess_data(combined_df)
+        timeline_df, journey_df = analyze_product_sequence(combined_df)
         return combined_df, timeline_df, journey_df
-        
     except Exception as e:
         st.error(f"Error loading data: {str(e)}")
         return None, None, None

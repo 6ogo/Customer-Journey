@@ -22,7 +22,7 @@ def validate_data(df):
 def load_csv_file(file_path):
     """Load the CSV file containing customer data"""
     try:
-        df = pd.read_csv(file_path)
+        df = pd.read_csv(file_path, sep=';')
         validate_data(df)
         return df
     except Exception as e:
@@ -195,33 +195,22 @@ def analyze_journey_patterns(journey_df):
     }
 
 def analyze_churn_risk(journey_df, combined_df, timeline_df):
-    """Analyze potential churn indicators in customer journeys"""
     if any(df.empty for df in [journey_df, combined_df, timeline_df]):
         return pd.DataFrame()
-        
-    risk_factors = pd.DataFrame()
-    
-    # Time since last product
-    current_date = combined_df['mFirst_BankBolån'].max()  # Use as reference date
-    if pd.isna(current_date):
-        return pd.DataFrame()
-        
-    # Using the last product's acquisition date
-    for idx in journey_df.index:
-        last_product = journey_df.loc[idx, 'last_product']
-        last_date = timeline_df[timeline_df['product'] == last_product]['acquisition_date'].max()
-        if pd.notna(last_date):
-            risk_factors.loc[idx, 'days_since_last_product'] = (current_date - last_date).days
-    
-    # Product discontinuation
+    product_cols = [col for col in combined_df.columns if col.startswith('mFirst_')]
+    current_date = combined_df[product_cols].max().max()
+    last_acquisition = timeline_df.groupby('sCustomerNaturalKey')['acquisition_date'].max()
+    risk_factors = pd.DataFrame(index=journey_df.index)
+    risk_factors['days_since_last_product'] = (current_date - last_acquisition.reindex(journey_df.index)).dt.days
     had_cols = [col for col in combined_df.columns if col.startswith('Had_')]
     have_cols = [col.replace('Had_', 'Have_') for col in had_cols]
-    
     risk_factors['discontinued_products'] = 0
     for had, have in zip(had_cols, have_cols):
-        risk_factors['discontinued_products'] += (combined_df[had] > combined_df[have]).astype(int)
-    
+        risk_factors['discontinued_products'] += (
+            combined_df.loc[journey_df.index, had] > combined_df.loc[journey_df.index, have]
+        ).astype(int)
     return risk_factors
+
 
 def create_product_timeline(timeline_df):
     """
