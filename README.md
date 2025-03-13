@@ -28,6 +28,7 @@ Located in `/notebook`, with requirements:
 cd notebook
 pip install -r requirements.txt
 ```
+
 This includes:
 - pandas
 - numpy
@@ -61,13 +62,14 @@ This includes:
 ```
 customer-journey-analysis/
 ├── data/
-│   ├── ABT_score_(PRODUCT).csv
+│   ├── customer_data.csv
 │   └── ...
 ├── notebook/
 │   ├── customer_journey_analysis.ipynb
 │   └── requirements.txt
 ├── Dashboard/
 │   ├── customerJourney.py
+│   ├── improved_sankey.py
 │   ├── utils.py
 │   └── requirements.txt
 └── README.md
