@@ -1,3 +1,8 @@
+import pandas as pd
+import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
+
 def plot_customer_journey_sankey(journey_df, max_paths=20, min_customers=50, color_map=None):
     """
     Create an enhanced Sankey diagram for customer journeys using a fixed color per product.
